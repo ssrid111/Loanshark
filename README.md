@@ -2,168 +2,129 @@
 
 ### Someone's got it. Your agent finds it.
 
-LoanShark is a student borrowing and lost-and-found assistant built around a group agent and private personal agents. Ask for a calculator before an exam, find an umbrella before class, or reconnect a lost item with its owner—without posting everyone's belongings and schedules in a group chat.
+LoanShark (working architecture name: CampusAgent) is a planned privacy-first campus assistant for equipment borrowing and lost-and-found. Personal agents will evaluate their students' private lending conditions and availability; a group agent will coordinate approved requests without publishing inventories or schedules. Both people must approve an arrangement and confirm the handoff.
 
-Despite the name, LoanShark is about borrowing everyday items. It does not issue financial loans or move money.
+**Current release: Milestone 1 — foundation only.** The application exposes real health checks and has a migrated PostgreSQL schema, safe logging, and tests. It does **not** yet lend items, run agents, connect to Discord, send reminders, or verify claims. There are no business-data endpoints or fabricated chatbot responses.
 
-> Project status: This README describes the proposed prototype and acceptance criteria. Implementation, supported messaging platforms, and real-user testing are not yet verified.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full approved design and [CLAUDE.md](CLAUDE.md) for development rules.
 
-## The problem
+## Requirements
 
-Student group chats already contain the people who might help. Finding the right person still means sending messages, repeating details, negotiating pickup, and remembering the return.
+- Python **3.12** (verified with 3.12.14); system Python 3.9 is too old.
+- Docker Desktop/Engine with Compose v2, running.
+- Ports `55432` (PostgreSQL, loopback only) and `8000` (app) available.
+- No Discord token, Claude key, cloud service or paid account is needed for this milestone.
 
-LoanShark turns “does anyone have one?” into a coordinated request. Personal agents check whether their students can help, negotiate compatible conditions, and ask the people involved to approve the arrangement.
+The Compose image is PostgreSQL 17 pinned by digest; it resolves to PostgreSQL 17.11 in the verified environment. Runtime and migration roles are separate. Development and test databases share one local PostgreSQL service.
 
-## How it works
+## Setup from a clean checkout
 
-1. **Join privately.** A student uses `/join` to create a personal agent and learn what information can be shared.
-2. **Set lending preferences.** Add items, availability, and conditions such as same-day returns or lending only to known people. Pause lending at any time.
-3. **Ask naturally.** Post a request such as “Need a graphing calculator before 2 PM near the library.”
-4. **Let agents coordinate.** The group agent routes the request. Personal agents check compatibility, willingness, timing, and return conditions.
-5. **Approve the arrangement.** A qualifying lender receives a private offer. Both students approve any meeting details before they are shared and confirm the handoff before the loan becomes active.
-6. **Return and close.** Private reminders track the agreed return time. The lender confirms receipt to close the loan.
-
-## Example interaction
-
-*Illustrative flow, not a recorded test.*
-
-**Group chat**
-
-> Maya: Need a graphing calculator for my 2 PM exam near the library.
->
-> LoanShark: On it—checking with opted-in members.
-
-**Private message to a potential lender**
-
-> LoanShark: Maya needs a graphing calculator until 4 PM. Your lending conditions fit. Interested?
->
-> Jay: Yes.
-
-**Private coordination**
-
-> LoanShark: Library entrance at 1:30 PM, return by 4 PM. Approve sharing this proposal with Maya?
-
-The borrower and lender review the proposal privately. An offer is not a reservation, and a proposed meeting is not a completed handoff.
-
-## Two kinds of agents
-
-### The group agent
-
-- Recognizes borrowing and lost-and-found requests while ignoring ordinary conversation.
-- Extracts the item, subtype, deadline, and location.
-- Asks one short follow-up when essential information is missing.
-- Coordinates requests and keeps public updates brief and non-identifying.
-- Maintains minimal coordination records rather than private inventories or raw schedules.
-
-### Each student's personal agent
-
-- Represents that student's inventory, availability, and lending preferences.
-- Independently decides whether a request is compatible.
-- Returns only an approved availability result and, when authorized, a proposed meeting place and time window.
-- Presents offers privately: accept, decline for now, or decline future requests from that person. Use buttons only where the selected platform supports them.
-- Requests approval before making commitments or sharing personal details.
-
-## Negotiation, not just matching
-
-| Situation | Proposed behavior |
-| --- | --- |
-| Two borrowers need the same item | Prioritize the earlier deadline, then the student who has borrowed less recently; explain the outcome without exposing another student's private circumstances. |
-| A lender cannot meet the deadline | Remove that candidate and check the next compatible option. |
-| A borrower requests three days; the lender permits same-day use | Present the shorter loan as a counteroffer and wait for acceptance. |
-| Several lenders accept | Reserve the first fully confirmed arrangement atomically and release the other offers without revealing who else was contacted. |
-| A lender's availability changes | Re-check planned availability 30 minutes before handoff when possible, warn affected students privately, and seek approval for a replacement arrangement. |
-
-No match overrides a lender's conditions or either person's right to decline.
-
-## Lost and found
-
-Lost reports capture the item, last-seen location and time, and identifying characteristics. Found reports separate a general description from hidden details such as initials, stickers, or damage.
-
-Agents compare likely matches and privately ask the claimant for a distinguishing detail. Verification questions must not reveal the expected answer. A match remains a candidate until the people involved approve the claim and handoff; a plausible answer is evidence, not guaranteed proof of ownership.
-
-Photos and automatic re-checking of unmatched reports are planned extensions. Hidden identifiers and verification answers must stay out of group messages and public records.
-
-## Privacy and consent
-
-- Private inventories and raw schedules stay within each student's protected agent context.
-- A single controlled privacy interface mediates cross-agent requests and returns only permitted results. Other agents cannot directly inspect private records.
-- Coordination records contain only the fields needed for routing and status. They are access-controlled; they are not a public group feed.
-- Ask before forwarding a request on someone's behalf, widening its audience, sharing a meeting point, publishing under a student's name, or presenting a purchase option.
-- An explicit borrowing request authorizes handling that request within its stated scope; it does not authorize contacting additional groups or disclosing private information.
-- Both students confirm the handoff. The lender confirms the return. Found-item resolution also requires confirmation.
-- Overdue reminders are private. No public shaming, unsolicited messages to strangers, or money transfers.
-- Record consent and state changes in an access-controlled audit log without copying raw schedules, hidden identifiers, or unnecessary personal details.
-
-Platform storage, deletion, identity checks, and access controls must be documented and verified before real deployment.
-
-## When nobody has the item
-
-The planned solution ladder expands only with permission:
-
-1. Check opted-in friends in the current group.
-2. Ask to widen the request to an appropriate dorm, class, or club group.
-3. Consult verified lending resources for a specifically supported campus.
-4. Offer a purchase or rental link with approval; the student handles payment.
-5. Suggest a clearly labeled workaround that the student must confirm is permitted.
-
-Search time should reflect urgency. Never invent opening hours, stock, campus policies, or permission to use substitute equipment. If information cannot be verified, say so.
-
-## Prototype scope
-
-### Core
-
-- [ ] One messaging-platform integration with group and private conversations.
-- [ ] Private onboarding, inventory, lending conditions, availability, and pause controls.
-- [ ] Borrowing request detection and clarification.
-- [ ] Privacy-controlled agent negotiation and counteroffers.
-- [ ] Mutual handoff confirmation and loan state tracking.
-- [ ] Return reminders, private overdue nudges, and lender-confirmed closure.
-- [ ] Lost-and-found matching with private claim verification.
-- [ ] Consent audit trail and privacy tests.
-
-### Extensions
-
-- [ ] Found-item photos and re-matching of open reports.
-- [ ] Consent-based expansion to additional groups.
-- [ ] Verified campus resource directory.
-- [ ] Opt-in, non-identifying community recaps.
-- [ ] Weather-triggered umbrella offers.
-
-The notes identify iMessage, WhatsApp, Discord, Slack, and Android messaging as possible surfaces. This is not a claim of integration with all of them. Choose and document one supported platform for the prototype.
-
-## Architecture
-
-```text
-Group conversation
-        |
-    Group agent
-        |
-Controlled privacy interface
-        |
-Student A agent <--> Student B agent <--> Student C agent
-        |
-Private approval requests to the respective students
-        |
-Confirmed arrangement -> loan tracking -> return confirmation
+```sh
+git clone https://github.com/ssrid111/Loanshark.git
+cd Loanshark
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pip install --no-deps --no-build-isolation -e .
+python -m pip check
+python scripts/dev_env.py
+docker compose up -d --wait postgres
+python scripts/bootstrap_db.py
+alembic upgrade head
+python scripts/migrate_test.py
 ```
 
-The interface restricts what may be exchanged; each personal agent makes decisions using its own private context. Negotiation shares approved proposals rather than entire inventories or calendars.
+On Windows activate with `.venv\Scripts\Activate.ps1`; use the Python 3.12 launcher to create the environment. Commands otherwise run from the repository root.
 
-## Demo and acceptance checks
+`dev_env.py` creates an ignored, permission-restricted `.env` with freshly generated **local development database passwords**. It never prints them and refuses to overwrite an existing `.env`. `.env.example` contains placeholders only. Alternatively, copy `.env.example` and replace every database/password placeholder locally. Do not paste credentials into chat or commit the completed file.
 
-1. Complete a borrowing flow with real participants: request, private offer, approved meeting, confirmed handoff, reminder, and return confirmation.
-2. Exercise competing borrowers, incompatible return windows, unreachable lenders, multiple acceptances, and changed availability.
-3. Demonstrate a lost-item match and a failed ownership claim without leaking the hidden answer.
-4. Attempt to expose inventory, schedules, and hidden identifiers through group messages, direct cross-agent requests, error messages, and logs.
-5. Verify that declined or missing consent prevents the corresponding action.
-6. Verify that simultaneous confirmations cannot create two active loans for the same item.
+`bootstrap_db.py` targets only the local Compose instance at `127.0.0.1:55432`. It creates `loanshark` and `loanshark_test`, their migrator/runtime roles and schema permissions. It does not reset existing role passwords. If you change `.env` passwords after creating the Docker volume, update the existing roles using the database administrator rather than expecting a restart to reset them. Do not remove a data volume that contains data you need.
 
-Record actual results before presenting any of these checks as passed.
+Alembic uses `MIGRATION_DATABASE_URL`; the application uses `DATABASE_URL`. The readiness check does not run migrations for you. Do not expose the migration role to a deployed application. For an existing external PostgreSQL server, have its administrator create equivalent roles/databases/schema permissions, use its URLs, skip the local bootstrap, and ensure the runtime role is named `loanshark_runtime` for the migration grants.
 
-## Running the project
+## Run
 
-The supplied specification does not include application code, a selected framework, credentials configuration, or an executable entry point. No installation commands are claimed here. Add verified setup instructions alongside the chosen implementation.
+```sh
+uvicorn main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
+```
 
-## Hackathon fit
+In another terminal:
 
-LoanShark is designed around Track 2's agent-to-agent coordination: agents represent different students, negotiate conflicting constraints, limit what they share, and ask humans before commitments. The group-facing interface also relates to Track 3, but entry in either track requires a Track 1 submission first.
+```sh
+curl --fail http://127.0.0.1:8000/health/live
+curl --fail http://127.0.0.1:8000/health/ready
+```
+
+- `/health/live` returns HTTP 200 when the application process responds. It does not claim the database works.
+- `/health/ready` connects to PostgreSQL and checks the exact Alembic revision. It returns HTTP 503 for connection failures, missing migrations, or a stale revision. It returns no credentials, database URL or student data.
+- `/docs` describes the health endpoints only. Private API, Discord and LLM integration remain disabled; attempting to enable them fails configuration validation.
+
+Stop the app with Ctrl+C. Stop the local database without deleting its volume:
+
+```sh
+docker compose stop postgres
+```
+
+## Test and verify
+
+With the environment active and the Compose database running:
+
+```sh
+python scripts/migrate_test.py
+pytest
+ruff check .
+ruff format --check .
+mypy
+alembic check
+python -m pip check
+python -m build --no-isolation
+```
+
+Unit-only tests, without a running database:
+
+```sh
+pytest -m 'not integration'
+```
+
+Tests load local `.env` without overriding already exported environment values. Integration tests require **both** `TEST_DATABASE_URL` and `TEST_RUNTIME_DATABASE_URL`, each naming a database ending in `_test`. They never fall back to the application URL. Missing test URLs produce visible skips; invalid database names fail. The generated `.env` provides the local test URLs.
+
+**Use a disposable test database.** Migration tests downgrade and rebuild its schema to verify reversibility and readiness failure. Other database fixtures roll back their synthetic writes. Do not run migration tests concurrently against the same database.
+
+Coverage includes settings/secret handling, UTC timestamps, structured log redaction, safe validation/error responses, liveness and real readiness, connectivity, rollback, identity uniqueness, ownership/foreign keys, duration/state constraints, separate lost/found tables, reservation uniqueness, loan constraints, append-only audit permissions, and migration upgrade/downgrade/schema consistency. These are foundation tests, not evidence that agent workflows are complete.
+
+`requirements.txt` pins runtime dependencies and their transitive versions; `requirements-dev.txt` adds the test, formatting, type-checking and packaging tools. Optional Claude and Discord dependencies will be added with their implementation milestones, not installed speculatively.
+
+## Foundation layout
+
+```text
+main.py                     FastAPI factory and lifecycle
+config.py                   environment settings; secrets hidden from representations
+api/routes.py               liveness and database/migration readiness
+core/clock.py               UTC clock interface
+core/errors.py              safe error responses and correlation IDs
+core/logging.py             allowlisted JSON logs without arbitrary exception/input text
+db/connection.py            async engine, transaction-scoped sessions and cleanup
+db/models.py                typed models, foreign keys, indexes and constraints
+db/migrations/              reviewed initial schema and append-only audit trigger
+scripts/                    local configuration, database bootstrap and test migration
+tests/                      unit and PostgreSQL integration tests
+compose.yaml                loopback-only PostgreSQL development service
+CLAUDE.md                   architecture conventions and milestone boundaries
+```
+
+## Schema and privacy boundaries
+
+- `Student` uses `users`; Discord/platform IDs are strings and unique per platform.
+- `InventoryItem`, `BorrowRequest`, `Loan`, `Confirmation`, and `AuditEvent` map to the approved tables.
+- `Community`, `LendingPolicy`, `Offer`, and `Reservation` provide required foreign-key targets. They contain no implemented negotiation behavior. A Loan never references a nonexistent reservation table.
+- `LostFoundReport` is a shared unmapped base for **separate** `lost_reports` and `found_reports`. Hidden-detail columns hold ciphertext bytes; encryption/intake/verification services are not yet implemented, and no endpoint accepts those fields.
+- All persisted timestamps use PostgreSQL `timestamptz`. Application writes reject naive datetimes and normalize aware ones to UTC; connections use UTC.
+- Database constraints prevent orphaned rows, cross-owner item/policy relationships, invalid durations, duplicate active reservations and malformed closure records. They do not replace future consent/authorization services.
+- Audit rows contain typed action/state references, not arbitrary message or request-body blobs. The runtime role can append/read but cannot update, delete or truncate audit records; a trigger also rejects mutation. This does not protect against database administrators.
+- Unexpected failures return a safe error code and server-generated request ID. Logs retain error type and code locations without raw exception strings, input, SQL parameters or secrets. CLI failures exit nonzero.
+
+There is no authenticated student-data interface yet, so there are no public inventory endpoints. The next milestone must enforce owner-scoped reads before exposing private functionality. Future group output may share only consented availability/meeting proposals, never raw inventory, schedules or hidden lost-item identifiers. The LLM will never authorize actions. No unsolicited stranger messaging or money movement is planned.
+
+## Exact next milestone
+
+**Milestone 2: identity, private data access and privacy guard** (the architecture's M1). Add authenticated student contexts, owner-scoped repositories, community opt-in/trusted contacts, availability and lending controls, logical personal agents, the strict privacy interface, four fake demo students and cross-owner negative tests. Borrowing negotiation and Discord event handlers come later. Stop for milestone authorization before starting that work.

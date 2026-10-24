@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loanshark-campusagent"
+version = "0.1.0"
+description = "Privacy-first campus borrowing assistant: foundation milestone"
+requires-python = ">=3.12,<3.13"
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+py-modules = ["main", "config"]
+
+[tool.setuptools.packages.find]
+include = ["core*", "api*", "db*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+db = ["migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["integration: requires a migrated disposable PostgreSQL test database"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+python_version = "3.12"
+strict = true
+files = ["main.py", "config.py", "core", "api", "db", "tests", "scripts"]
