@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loanshark-campusagent"
-version = "0.1.0"
-description = "Privacy-first campus borrowing assistant: foundation milestone"
+version = "0.2.0"
+description = "Privacy-first campus borrowing assistant: isolated personal agents and privacy gateway"
 requires-python = ">=3.12,<3.13"
 dynamic = ["dependencies"]
 
@@ -13,11 +13,11 @@ dynamic = ["dependencies"]
 py-modules = ["main", "config"]
 
 [tool.setuptools.packages.find]
-include = ["core*", "api*", "db*"]
+include = ["core*", "api*", "db*", "agents*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-db = ["migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
+db = ["migrations/*.py", "migrations/*.mako", "migrations/versions/*.py", "migrations/sql/*.sql"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
@@ -39,4 +39,4 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 plugins = ["pydantic.mypy"]
 python_version = "3.12"
 strict = true
-files = ["main.py", "config.py", "core", "api", "db", "tests", "scripts"]
+files = ["main.py", "config.py", "core", "api", "db", "tests", "scripts", "agents"]

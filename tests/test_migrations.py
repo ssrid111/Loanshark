@@ -61,8 +61,6 @@ async def test_stale_revision_is_not_ready() -> None:
                 assert response.status_code == 503
         finally:
             async with database.transaction() as session:
-                await session.execute(
-                    text("UPDATE alembic_version SET version_num='0001_foundation'")
-                )
+                await session.execute(text("UPDATE alembic_version SET version_num='0002_privacy'"))
     finally:
         await database.close()

@@ -10,6 +10,7 @@ def main() -> None:
         "REPLACE_ADMIN_PASSWORD": secrets.token_hex(24),
         "REPLACE_MIGRATION_PASSWORD": secrets.token_hex(24),
         "REPLACE_RUNTIME_PASSWORD": secrets.token_hex(24),
+        "REPLACE_GATEWAY_PASSWORD": secrets.token_hex(24),
     }
     content = Path(".env.example").read_text()
     for placeholder, value in replacements.items():

@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import Settings
 from db.connection import Database
 
+pytest_plugins = ["tests.privacy_fixtures"]
+
 load_dotenv(override=False)
 
 
@@ -45,7 +47,7 @@ async def database() -> AsyncIterator[Database]:
     try:
         async with database.engine.connect() as connection:
             revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-            assert revision == "0001_foundation", "Migrate the test database first"
+            assert revision == "0002_privacy", "Migrate the test database first"
         yield database
     finally:
         await database.close()

@@ -15,6 +15,7 @@ async def main() -> None:
     passwords = {
         "loanshark_migrator": os.environ["MIGRATION_PASSWORD"],
         "loanshark_runtime": os.environ["RUNTIME_PASSWORD"],
+        "loanshark_gateway": os.environ["GATEWAY_PASSWORD"],
     }
     url = URL.create(
         "postgresql+asyncpg",
@@ -50,6 +51,7 @@ async def main() -> None:
                     await conn.exec_driver_sql(f"CREATE DATABASE {name} OWNER loanshark_migrator")
                 await conn.exec_driver_sql(f"REVOKE ALL ON DATABASE {name} FROM PUBLIC")
                 await conn.exec_driver_sql(f"GRANT CONNECT ON DATABASE {name} TO loanshark_runtime")
+                await conn.exec_driver_sql(f"GRANT CONNECT ON DATABASE {name} TO loanshark_gateway")
     finally:
         await engine.dispose()
     for name in ("loanshark", "loanshark_test"):

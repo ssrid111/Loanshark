@@ -72,6 +72,9 @@ class Student(Identity, Base):
     consent_version: Mapped[int] = mapped_column(Integer, server_default="0")
     joined_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
     inactive_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    schedule_known_from: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    schedule_known_until: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    schedule_verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class Community(Identity, Base):
@@ -299,3 +302,106 @@ class AuditEvent(Identity, CreatedAt, Base):
     correlation_id: Mapped[UUID] = mapped_column(index=True)
     before_state: Mapped[str | None] = mapped_column(String(32))
     after_state: Mapped[str | None] = mapped_column(String(32))
+
+
+class ApiToken(Identity, CreatedAt, Base):
+    __tablename__ = "api_tokens"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    token_digest: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class Membership(Identity, Base):
+    __tablename__ = "memberships"
+    __table_args__ = (UniqueConstraint("community_id", "user_id"),)
+    community_id: Mapped[UUID] = mapped_column(ForeignKey("communities.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    verified: Mapped[bool] = mapped_column(Boolean, server_default=false())
+    opted_in: Mapped[bool] = mapped_column(Boolean, server_default=false())
+
+
+class TrustedContact(Identity, Base):
+    __tablename__ = "trusted_contacts"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "contact_id", "community_id"),
+        CheckConstraint("owner_id <> contact_id", name="different_people"),
+    )
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    contact_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    community_id: Mapped[UUID] = mapped_column(ForeignKey("communities.id"), index=True)
+
+
+class HandoffLocation(Identity, Base):
+    """Admin-curated public meeting zones, never a student's private address."""
+
+    __tablename__ = "handoff_locations"
+    __table_args__ = (
+        UniqueConstraint("community_id", "code"),
+        UniqueConstraint("id", "community_id"),
+        CheckConstraint("code ~ '^[a-z][a-z0-9-]{0,63}$'", name="safe_location_code"),
+    )
+    community_id: Mapped[UUID] = mapped_column(ForeignKey("communities.id"), index=True)
+    code: Mapped[str] = mapped_column(String(64))
+    approved: Mapped[bool] = mapped_column(Boolean, server_default=false())
+
+
+class AvailabilityWindow(Identity, Base):
+    __tablename__ = "availability_windows"
+    __table_args__ = (
+        CheckConstraint("end_at > start_at", name="positive_window"),
+        CheckConstraint("travel_buffer_minutes BETWEEN 0 AND 120", name="valid_buffer"),
+        Index("ix_availability_owner_window", "owner_id", "start_at", "end_at"),
+    )
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    location_id: Mapped[UUID] = mapped_column(ForeignKey("handoff_locations.id"), index=True)
+    start_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    end_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    travel_buffer_minutes: Mapped[int] = mapped_column(Integer, server_default="15")
+
+
+class ScheduleBlock(Identity, Base):
+    __tablename__ = "schedule_blocks"
+    __table_args__ = (
+        CheckConstraint("end_at > start_at", name="positive_window"),
+        Index("ix_schedule_owner_window", "owner_id", "start_at", "end_at"),
+    )
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    start_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    end_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    private_location: Mapped[str] = mapped_column(String(200))
+
+
+class CoordinationGrant(Identity, CreatedAt, Base):
+    """Immutable, requester-approved query; digest is an opaque coordination capability."""
+
+    __tablename__ = "coordination_grants"
+    __table_args__ = (
+        CheckConstraint("requester_id <> target_owner_id", name="different_people"),
+        CheckConstraint("window_end > window_start", name="positive_window"),
+        CheckConstraint("return_at > window_end", name="valid_return"),
+        ForeignKeyConstraint(
+            ["location_id", "community_id"],
+            ["handoff_locations.id", "handoff_locations.community_id"],
+        ),
+    )
+    authorizing_token_id: Mapped[UUID] = mapped_column(ForeignKey("api_tokens.id"), index=True)
+    requester_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    target_owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    community_id: Mapped[UUID] = mapped_column(ForeignKey("communities.id"), index=True)
+    location_id: Mapped[UUID] = mapped_column(index=True)
+    canonical_item: Mapped[str] = mapped_column(String(100))
+    subtype: Mapped[str | None] = mapped_column(String(100))
+    window_start: Mapped[datetime] = mapped_column(UTCDateTime())
+    window_end: Mapped[datetime] = mapped_column(UTCDateTime())
+    return_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    check_count: Mapped[int] = mapped_column(Integer, server_default="0")
+    capability_digest: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class SharingApproval(Identity, CreatedAt, Base):
+    __tablename__ = "sharing_approvals"
+    grant_id: Mapped[UUID] = mapped_column(ForeignKey("coordination_grants.id"), unique=True)
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
